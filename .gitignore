@@ -51,3 +51,10 @@ Thumbs.db
 #//////////////////////////
 
 .vscode/
+
+# 忽略临时文件和文档
+*.docx
+~$*
+.codebuddy/
+.cursor/
+游戏内容.md
