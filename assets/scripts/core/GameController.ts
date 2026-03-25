@@ -296,6 +296,8 @@ export default class GameController {
                 const nextTile = next ? this._gridModel.getTile(next.row, next.col) : null;
 
                 if (nextTile && nextTile.canMergeWith(tile)) {
+                    this._gridModel.setTile(row, col, null);
+                    tile.moveTo(next.row, next.col);
                     tile.mergeTo(nextTile);
 
                     mergedTiles.push(nextTile);
@@ -395,47 +397,76 @@ export default class GameController {
         mergedTiles: TileModel[];
         removedTiles: TileModel[];
     }, callback: () => void): void {
-        let animationCount = result.movedTiles.length + result.mergedTiles.length + result.removedTiles.length;
-
-        const checkComplete = () => {
-            animationCount--;
-            if (animationCount <= 0) {
-                callback();
-            }
-        };
-
-        if (animationCount === 0) {
+        const hasAny = result.movedTiles.length > 0 || result.mergedTiles.length > 0 || result.removedTiles.length > 0;
+        if (!hasAny) {
             callback();
             return;
         }
 
+        // Phase 1: 所有滑动动画（纯移动 + 被合并的 tile 滑向目标位置）
+        const phase1Total = result.movedTiles.length + result.removedTiles.length;
+
+        const startPhase2 = () => {
+            // Phase 2: 合并弹跳 + 消失
+            let phase2Remaining = result.mergedTiles.length + result.removedTiles.length;
+            if (phase2Remaining === 0) {
+                callback();
+                return;
+            }
+
+            const checkPhase2 = () => {
+                phase2Remaining--;
+                if (phase2Remaining <= 0) callback();
+            };
+
+            for (const tile of result.mergedTiles) {
+                const tileView = this._gameView.getTileView(tile.id);
+                if (tileView) {
+                    tileView.playMergeAnimation(checkPhase2);
+                } else {
+                    checkPhase2();
+                }
+            }
+
+            for (const tile of result.removedTiles) {
+                const tileView = this._gameView.getTileView(tile.id);
+                if (tileView) {
+                    tileView.playRemoveAnimation(() => {
+                        this._gameView.removeTileView(tile.id);
+                        checkPhase2();
+                    });
+                } else {
+                    checkPhase2();
+                }
+            }
+        };
+
+        if (phase1Total === 0) {
+            startPhase2();
+            return;
+        }
+
+        let phase1Remaining = phase1Total;
+        const checkPhase1 = () => {
+            phase1Remaining--;
+            if (phase1Remaining <= 0) startPhase2();
+        };
+
         for (const tile of result.movedTiles) {
             const tileView = this._gameView.getTileView(tile.id);
             if (tileView) {
-                tileView.playMoveAnimation(tile.row, tile.col, GameConfig.MOVE_DURATION, checkComplete);
+                tileView.playMoveAnimation(tile.row, tile.col, GameConfig.MOVE_DURATION, checkPhase1);
             } else {
-                checkComplete();
-            }
-        }
-
-        for (const tile of result.mergedTiles) {
-            const tileView = this._gameView.getTileView(tile.id);
-            if (tileView) {
-                tileView.playMergeAnimation(checkComplete);
-            } else {
-                checkComplete();
+                checkPhase1();
             }
         }
 
         for (const tile of result.removedTiles) {
             const tileView = this._gameView.getTileView(tile.id);
             if (tileView) {
-                tileView.playRemoveAnimation(() => {
-                    this._gameView.removeTileView(tile.id);
-                    checkComplete();
-                });
+                tileView.playMoveAnimation(tile.row, tile.col, GameConfig.MOVE_DURATION, checkPhase1);
             } else {
-                checkComplete();
+                checkPhase1();
             }
         }
     }
