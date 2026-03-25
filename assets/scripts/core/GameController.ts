@@ -341,10 +341,8 @@ export default class GameController {
             cols.push(i);
         }
 
-        // 向上移动：从下往上遍历，rows 需要反转
-        if (direction === Direction.Up) rows.reverse();
-        // 向左移动：从右往左遍历，cols 需要反转
-        if (direction === Direction.Left) cols.reverse();
+        if (direction === Direction.Down) rows.reverse();
+        if (direction === Direction.Right) cols.reverse();
 
         return { rows, cols };
     }
